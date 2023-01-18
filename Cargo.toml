@@ -1,9 +1,17 @@
 [package]
-name = "touhou-recong-bot"
+name = "image-notify-bot"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-serenity = "0.11.5"
+# poise = "0.5.2"
+serenity = { version = "0.11.5", default-features = false, features = [
+    "client",
+    "gateway",
+    "rustls_backend",
+    "model",
+] }
+tokio = { version = "1.24.1", features = ["macros", "rt-multi-thread"] }
+tokio-util = { version = "0.7.4", features = ["codec"] }
