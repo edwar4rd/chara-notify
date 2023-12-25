@@ -1,27 +1,17 @@
 use image_notify_bot::prelude::*;
 
-/// Shutdown the bot (and save data)
-#[poise::command(slash_command, owners_only)]
-async fn shutdown(ctx: Context<'_>) -> Result<(), Error> {
-    ctx.defer_ephemeral().await?;
-    ctx.say("Shutting down the bot...").await?;
-    ctx.framework()
-        .shard_manager()
-        .lock()
-        .await
-        .shutdown_all()
-        .await;
-    Ok(())
-}
+const PARALLEL_EVALUATER_COUNT: usize = 3;
 
 #[tokio::main]
 async fn main() {
-    // load previously loaded datas
+    // load previously written datas
+
     let previous_data = match std::fs::File::open("image-notify-bot_data") {
         Ok(file) => serde_cbor::from_reader(std::io::BufReader::new(file))
             .expect("Failed to read previous data: data is possibly corrupted"),
         Err(err) => match err.kind() {
             std::io::ErrorKind::NotFound => WrittenData {
+                evaluation_caches: dashmap::DashMap::new(),
                 monitored_channels: std::collections::BTreeMap::new(),
             },
             _ => panic!("Failed to read previous data"),
@@ -32,14 +22,25 @@ async fn main() {
         std::sync::Arc::from(std::sync::Mutex::new(previous_data.monitored_channels));
     let monitored_channels_clone = monitored_channels.clone();
 
+    let evaluation_caches =
+        std::sync::Arc::from(previous_data.evaluation_caches);
+    let evaluation_caches_clone = evaluation_caches.clone();
+
+    let evaluation_semaphore = tokio::sync::Semaphore::new(PARALLEL_EVALUATER_COUNT);
+    
     let mut commands = Vec::new();
 
     commands.push(commands::config::config());
-    commands.push(shutdown());
+
+    commands.push(commands::help());
+    commands.push(commands::shutdown());
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             commands,
+            event_handler: |ctx, event, _framework, data| {
+                Box::pin(handler::handler(ctx, event, data))
+            },
             ..Default::default()
         })
         .token(std::env::var("DISCORD_TOKEN").expect("missing DISCORD_TOKEN"))
@@ -51,18 +52,21 @@ async fn main() {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
                 Ok(Data {
                     monitored_channels: monitored_channels_clone,
+                    evaluation_caches: evaluation_caches_clone,
+                    evaluation_semaphore
                 })
             })
         });
 
     framework.run().await.unwrap();
     println!("{}", monitored_channels.lock().unwrap().len());
-    let written_data = WrittenData {
-        monitored_channels: monitored_channels.lock().unwrap().clone(),
+    let writing_data = WritingData {
+        monitored_channels: &(*monitored_channels.lock().unwrap()),
+        evaluation_caches: &evaluation_caches
     };
     std::fs::write(
         std::path::Path::new("image-notify-bot_data"),
-        serde_cbor::to_vec(&written_data).unwrap(),
+        serde_cbor::to_vec(&writing_data).unwrap(),
     )
     .unwrap();
 }
