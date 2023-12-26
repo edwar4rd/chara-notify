@@ -20,20 +20,29 @@ async fn main() {
 
     let monitored_channels =
         std::sync::Arc::from(std::sync::Mutex::new(previous_data.monitored_channels));
-    let monitored_channels_clone = monitored_channels.clone();
 
-    let evaluation_caches =
-        std::sync::Arc::from(previous_data.evaluation_caches);
-    let evaluation_caches_clone = evaluation_caches.clone();
+    let evaluation_caches = std::sync::Arc::from(previous_data.evaluation_caches);
 
-    let evaluation_semaphore = tokio::sync::Semaphore::new(PARALLEL_EVALUATER_COUNT);
-    
-    let mut commands = Vec::new();
+    let data = {
+        let monitored_channels_clone = monitored_channels.clone();
+        let evaluation_caches_clone = evaluation_caches.clone();
+        let evaluation_semaphore = tokio::sync::Semaphore::new(PARALLEL_EVALUATER_COUNT);
+        Data {
+            monitored_channels: monitored_channels_clone,
+            evaluation_caches: evaluation_caches_clone,
+            evaluation_semaphore,
+        }
+    };
 
-    commands.push(commands::config::config());
+    let commands = {
+        let mut commands = Vec::new();
 
-    commands.push(commands::help());
-    commands.push(commands::shutdown());
+        commands.push(commands::config::config());
+        commands.push(commands::help());
+        commands.push(commands::shutdown());
+
+        commands
+    };
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
@@ -50,11 +59,7 @@ async fn main() {
         .setup(|ctx, _ready, framework| {
             Box::pin(async move {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
-                Ok(Data {
-                    monitored_channels: monitored_channels_clone,
-                    evaluation_caches: evaluation_caches_clone,
-                    evaluation_semaphore
-                })
+                Ok(data)
             })
         });
 
@@ -62,7 +67,7 @@ async fn main() {
     println!("{}", monitored_channels.lock().unwrap().len());
     let writing_data = WritingData {
         monitored_channels: &(*monitored_channels.lock().unwrap()),
-        evaluation_caches: &evaluation_caches
+        evaluation_caches: &evaluation_caches,
     };
     std::fs::write(
         std::path::Path::new("image-notify-bot_data"),

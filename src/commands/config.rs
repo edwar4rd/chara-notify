@@ -62,7 +62,6 @@ pub async fn channel_remove(
             let guild_channels = monitored_channels.get_mut(&ctx.guild_id()).unwrap();
             let result = guild_channels.remove(&channel.id());
             if result && guild_channels.is_empty() {
-                drop(guild_channels);
                 monitored_channels.remove(&ctx.guild_id());
             }
 

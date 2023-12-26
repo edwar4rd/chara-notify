@@ -79,14 +79,12 @@ pub async fn handler(
                 id,
                 name: _,
             } => {
-                if add_reaction.user_id.is_none()
-                    || add_reaction.user_id.unwrap().to_user(ctx).await?.bot
-                {
-                    return Ok(());
-                }
+                // ignore other reactions
                 if id.0 != 1066602611303780393 {
                     return Ok(());
                 }
+
+                // check if channel is being monitored by the bot
                 {
                     let monitored_channels = data.monitored_channels.lock().unwrap();
                     if !monitored_channels.contains_key(&add_reaction.guild_id) {
@@ -97,9 +95,17 @@ pub async fn handler(
                         return Ok(());
                     }
                 }
+
+                // ignore bot user
+                if add_reaction.user_id.is_none()
+                    || add_reaction.user_id.unwrap().to_user(ctx).await?.bot
+                {
+                    return Ok(());
+                }
+
                 let message = add_reaction.message(ctx).await.unwrap();
                 let image_list = image::message_list_images(&message);
-            
+
                 for image_url in image_list {
                     let response = {
                         let cache_exists = { data.evaluation_caches.contains_key(image_url) };
@@ -130,7 +136,7 @@ pub async fn handler(
                                     result.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
                                     for tag in result {
                                         let new = format!("{}: {}\n", tag.0, tag.1);
-                                        if response.len() + new.len() > 1900 {
+                                        if response.len() + new.len() > 1995 {
                                             break;
                                         } else {
                                             response.push_str(&new);
