@@ -107,58 +107,65 @@ pub async fn handler(
                 let image_list = image::message_list_images(&message);
 
                 for image_url in image_list {
+                    // let response = {
+                    //     let cache_exists = { data.evaluation_caches.contains_key(image_url) };
+                    //     if cache_exists {
+                    //         let caches = &data.evaluation_caches;
+                    //         let result = caches.get(image_url).unwrap();
+                    //         let mut response = String::new();
+                    //         let mut result = result.iter().collect::<Vec<(&u32, &f32)>>();
+                    //         response.push_str("```\n");
+                    //         result.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+                    //         for tag in result {
+                    //             let new = format!("{:04}: {:12}\n", tag.0, tag.1);
+                    //             if response.len() + new.len() > 1995 {
+                    //                 break;
+                    //             } else {
+                    //                 response.push_str(&new);
+                    //             }
+                    //         }
+                    //         response.push_str("```\n");
+                    //         response
+                    //     } else {
+                    //         match image::evaluate_image(image_url).await {
+                    //             Ok(result_map) => {
+                    //                 let mut response = String::new();
+                    //                 let mut result =
+                    //                     result_map.iter().collect::<Vec<(&u32, &f32)>>();
+                    //                 response.push_str("```\n");
+                    //                 result.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+                    //                 for tag in result {
+                    //                     let new = format!("{:04}: {:12}\n", tag.0, tag.1);
+                    //                     if response.len() + new.len() > 1995 {
+                    //                         break;
+                    //                     } else {
+                    //                         response.push_str(&new);
+                    //                     }
+                    //                 }
+                    //                 {
+                    //                     data.evaluation_caches
+                    //                         .insert(image_url.to_string(), result_map);
+                    //                 }
+                    //                 response.push_str("```\n");
+                    //                 response
+                    //             }
+                    //             Err(err_no) => match err_no {
+                    //                 -5 => "Failed to start the evaluation subprocess",
+                    //                 -1 => "Failed to get response from proxy_url",
+                    //                 -2 => "Failed to retrieve file from proxy_url",
+                    //                 -3 => "Failed to open file as image",
+                    //                 _ => unreachable!(),
+                    //             }
+                    //             .to_string(),
+                    //         }
+                    //     }
+                    // };
                     let response = {
-                        let cache_exists = { data.evaluation_caches.contains_key(image_url) };
-                        if cache_exists {
-                            let caches = &data.evaluation_caches;
-                            let result = caches.get(image_url).unwrap();
-                            let mut response = String::new();
-                            let mut result = result.iter().collect::<Vec<(&u32, &f32)>>();
-                            response.push_str("```\n");
-                            result.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-                            for tag in result {
-                                let new = format!("{:04}: {:12}\n ", tag.0, tag.1);
-                                if response.len() + new.len() > 1995 {
-                                    break;
-                                } else {
-                                    response.push_str(&new);
-                                }
-                            }
-                            response.push_str("```\n");
-                            response
-                        } else {
-                            match image::evaluate_image(image_url).await {
-                                Ok(result_map) => {
-                                    let mut response = String::new();
-                                    let mut result =
-                                        result_map.iter().collect::<Vec<(&u32, &f32)>>();
-                                    response.push_str("```\n");
-                                    result.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-                                    for tag in result {
-                                        let new = format!("{:04}: {:12}\n", tag.0, tag.1);
-                                        if response.len() + new.len() > 1995 {
-                                            break;
-                                        } else {
-                                            response.push_str(&new);
-                                        }
-                                    }
-                                    {
-                                        data.evaluation_caches
-                                            .insert(image_url.to_string(), result_map);
-                                    }
-                                    response.push_str("```\n");
-                                    response
-                                }
-                                Err(err_no) => match err_no {
-                                    -5 => "Failed to start the evaluation subprocess",
-                                    -1 => "Failed to get response from proxy_url",
-                                    -2 => "Failed to retrieve file from proxy_url",
-                                    -3 => "Failed to open file as image",
-                                    _ => unreachable!(),
-                                }
-                                .to_string(),
-                            }
-                        }
+                        let result: Result<
+                            Vec<(TagName, TagConfidence, TagClass)>,
+                            EvaluaterError,
+                        > = data.evaluater.lock().await.evaluate_picure(image_url).await;
+                        result_to_response_text(&result)
                     };
                     message.reply(ctx, &format!("{}", response)).await?;
                 }
@@ -168,4 +175,34 @@ pub async fn handler(
         _ => (),
     }
     Ok(())
+}
+
+fn result_to_response_text(
+    result: &Result<Vec<(TagName, TagConfidence, TagClass)>, EvaluaterError>,
+) -> String {
+    let mut response = String::new();
+    match result {
+        Ok(result) => {
+            response += "```Ok:\n";
+            let mut result = result.clone();
+            result.sort_by(|item_a, item_b| item_b.1.partial_cmp(&item_a.1).unwrap());
+            for (tag_name, confidence, class) in result.iter() {
+                if *confidence > 0.2 {
+                    let new_line = format!(
+                        "\t{:30} {:.6} {:?}\n",
+                        tag_name, confidence, class
+                    );
+                    if response.len() + new_line.len() > 1992 {
+                        break;
+                    }
+                    response.push_str(&new_line);
+                }
+            }
+            response += "```\n";
+        }
+        Err(err) => {
+            response.push_str(&format!("```Error: \n\t{:?}```\n", err));
+        }
+    }
+    response
 }

@@ -25,12 +25,13 @@ async fn main() {
 
     let data = {
         let monitored_channels_clone = monitored_channels.clone();
-        let evaluation_caches_clone = evaluation_caches.clone();
-        let evaluation_semaphore = tokio::sync::Semaphore::new(PARALLEL_EVALUATER_COUNT);
+        let evaluater = MyEvaluater::new().await.unwrap();
+        let evaluater = std::sync::Arc::new(tokio::sync::Mutex::new(evaluater));
+        // let evaluation_caches_clone = evaluation_caches.clone();
+        // let evaluation_semaphore = tokio::sync::Semaphore::new(PARALLEL_EVALUATER_COUNT);
         Data {
             monitored_channels: monitored_channels_clone,
-            evaluation_caches: evaluation_caches_clone,
-            evaluation_semaphore,
+            evaluater: evaluater
         }
     };
 
