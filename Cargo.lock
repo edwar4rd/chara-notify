@@ -582,6 +582,7 @@ dependencies = [
 name = "image-notify-bot"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "dashmap",
  "poise",
  "serde",
