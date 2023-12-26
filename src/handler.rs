@@ -117,7 +117,7 @@ pub async fn handler(
                             response.push_str("```\n");
                             result.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
                             for tag in result {
-                                let new = format!("{}: {}\n ", tag.0, tag.1);
+                                let new = format!("{:04}: {:12}\n ", tag.0, tag.1);
                                 if response.len() + new.len() > 1995 {
                                     break;
                                 } else {
@@ -135,7 +135,7 @@ pub async fn handler(
                                     response.push_str("```\n");
                                     result.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
                                     for tag in result {
-                                        let new = format!("{}: {}\n", tag.0, tag.1);
+                                        let new = format!("{:04}: {:12}\n", tag.0, tag.1);
                                         if response.len() + new.len() > 1995 {
                                             break;
                                         } else {
